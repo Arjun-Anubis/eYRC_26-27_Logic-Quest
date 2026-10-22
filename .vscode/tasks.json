@@ -1,0 +1,43 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Quartus: Compile Project (Auto-Detect)",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile",
+                "-Command",
+                "$d = '${fileDirname}'; if (-not $d) { $d = '${workspaceFolder}' }; while ($d -and -not (Get-ChildItem -Path $d -Filter '*.qpf')) { $p = Split-Path $d -Parent; if ($p -eq $d) { break }; $d = $p }; $q = Get-ChildItem -Path $d -Filter '*.qpf' | Select-Object -First 1; if ($q) { Set-Location $d; & 'C:\\intelFPGA_lite\\20.1\\quartus\\bin64\\quartus_sh.exe' --flow compile $q.BaseName } else { Write-Error 'No Quartus project (.qpf) found!' }"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "ModelSim: Run Simulation (Auto-Detect)",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile",
+                "-Command",
+                "$d = '${fileDirname}'; if (-not $d) { $d = '${workspaceFolder}' }; while ($d -and -not (Get-ChildItem -Path $d -Filter '*.qpf')) { $p = Split-Path $d -Parent; if ($p -eq $d) { break }; $d = $p }; $q = Get-ChildItem -Path $d -Filter '*.qpf' | Select-Object -First 1; if ($q) { Set-Location $d; $doFile = Join-Path $d ('simulation/modelsim/' + $q.BaseName + '_run_msim_rtl_verilog.do'); if (Test-Path $doFile) { & 'C:\\intelFPGA_lite\\20.1\\modelsim_ase\\win32aloem\\vsim.exe' -do $doFile } else { Write-Error ('ModelSim .do file not found at: ' + $doFile + '. Make sure you have compiled at least once in Quartus with NativeLink Simulation configured!'); exit 1 } } else { Write-Error 'No Quartus project (.qpf) found!' }"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

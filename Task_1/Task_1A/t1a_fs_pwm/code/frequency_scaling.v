@@ -25,10 +25,28 @@ module frequency_scaling (
 
 //////////////////DO NOT MAKE ANY CHANGES ABOVE THIS LINE //////////////////
 
+	reg [2:0] counter;
+	
+	initial begin
+		counter = 0;
+		clk_5MHz = 0;
+	end
+	
+	always @(posedge clk_50MHz or negedge reset_n) 
+		if (!reset_n) begin
+			clk_5MHz <= 0;
+			counter <= 4;
+		end
+			
+		else
+			if (counter == 4) begin
+				counter <= 0;
+				clk_5MHz <= ~clk_5MHz;
+			end 
+			else
+				counter <= counter + 1;
 
-/*
- add your code here 
- */
+
 
 //////////////////DO NOT MAKE ANY CHANGES BELOW THIS LINE //////////////////
 

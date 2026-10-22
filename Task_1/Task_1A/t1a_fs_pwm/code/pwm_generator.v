@@ -25,9 +25,20 @@ module pwm_generator(
 
 //////////////////DO NOT MAKE ANY CHANGES ABOVE THIS LINE //////////////////
 
-/*
- add your code here 
- */
+reg [15:0] counter;
+wire [15:0] period;
+assign period = pulse_width * 16'd500;
+always @(*) clk_500Hz = counter < 5000;
+always @(*) pwm_signal = counter < period;
+	
+
+always @(posedge clk_5MHz or negedge reset_n) 
+	if (!reset_n) begin
+		counter <= 9999;
+	end else begin
+		if (counter == 9999) counter <= 0;
+		else counter <= counter + 16'd1;
+	end
  
 //////////////////DO NOT MAKE ANY CHANGES BELOW THIS LINE//////////////////
 

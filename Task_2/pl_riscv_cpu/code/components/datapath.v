@@ -5,7 +5,7 @@ module datapath (
     input [1:0]   ResultSrc,
     input         ALUSrc, RegWrite,
     input [1:0]   ImmSrc,
-    input [2:0]   ALUControl,
+    input [3:0]   ALUControl,
     input         Branch, Jump, Jalr,
     output [31:0] PC,
     input  [31:0] Instr,
@@ -17,13 +17,17 @@ module datapath (
 
 wire [31:0] PCNext, PCJalr, PCPlus4, PCTarget, AuiPC, lAuiPC;
 wire [31:0] ImmExt, SrcA, SrcB, WriteData, ALUResult;
-wire Zero, TakeBranch;
+wire Zero, TakeBranch, Lt, Ltu;
+wire [31:0] JalrTarget = {ALUResult[31:1], 1'b0};
+reg  [31:0] MemWData, LoadData;
+reg  [ 7:0] lbyte;
+reg  [15:0] lhalf;
 
 wire PCSrc = ((Branch & TakeBranch) || Jump || Jalr) ? 1'b1 : 1'b0;
 
 // next PC logic
 mux2 #(32)     pcmux(PCPlus4, PCTarget, PCSrc, PCNext);
-mux2 #(32)     jalrmux (PCNext, ALUResult, Jalr, PCJalr);
+mux2 #(32)     jalrmux (PCNext, JalrTarget, Jalr, PCJalr);
 
 // stallF - should be wired from hazard unit
 wire StallF = 0; // remove it after adding hazard unit.
@@ -52,7 +56,45 @@ alu            alu (SrcA, SrcB, ALUControl, ALUResult, Zero);
 adder #(32)    auipcadder ({Instr[31:12], 12'b0}, PC, AuiPC);
 mux2 #(32)     lauipcmux (AuiPC, {Instr[31:12], 12'b0}, Instr[5], lAuiPC);
 
-branching_unit bu (Instr[14:12], Zero, ALUResult[31], TakeBranch);
+assign Lt  = ($signed(SrcA) < $signed(SrcB));
+assign Ltu = (SrcA < SrcB);
+branching_unit bu (Instr[14:12], Zero, Lt, Ltu, TakeBranch);
+
+// SB / SH read-modify-write (from 1C top level). data_mem is always in word mode.
+// ReadData = old word at ALUResult. Only used when MemWrite=1.
+always @(*) begin
+    MemWData = WriteData;                              // SW
+    case (Instr[13:12])                                // funct3[1:0]
+        2'b00: case (ALUResult[1:0])                   // SB
+            2'd0:    MemWData = {ReadData[31:8],  WriteData[7:0]};
+            2'd1:    MemWData = {ReadData[31:16], WriteData[7:0], ReadData[7:0]};
+            2'd2:    MemWData = {ReadData[31:24], WriteData[7:0], ReadData[15:0]};
+            default: MemWData = {WriteData[7:0],  ReadData[23:0]};
+        endcase
+        2'b01: MemWData = ALUResult[1] ? {WriteData[15:0], ReadData[15:0]}   // SH
+                                       : {ReadData[31:16], WriteData[15:0]};
+        default: ;
+    endcase
+end
+
+//Load formatter (as written for 1C datapath)
+always @(*) begin
+    case (ALUResult[1:0])
+        2'd0:    lbyte = ReadData[7:0];
+        2'd1:    lbyte = ReadData[15:8];
+        2'd2:    lbyte = ReadData[23:16];
+        default: lbyte = ReadData[31:24];
+    endcase
+    lhalf = ALUResult[1] ? ReadData[31:16] : ReadData[15:0];
+    case (Instr[14:12])
+        3'b000:  LoadData = {{24{lbyte[7]}}, lbyte};     // LB
+        3'b001:  LoadData = {{16{lhalf[15]}}, lhalf};    // LH
+        3'b100:  LoadData = {24'b0, lbyte};              // LBU
+        3'b101:  LoadData = {16'b0, lhalf};              // LHU
+        default: LoadData = ReadData;                    // LW
+    endcase
+end
+
 
 // Pipeline Register 3 -> Execute | Memory
 
@@ -61,11 +103,11 @@ branching_unit bu (Instr[14:12], Zero, ALUResult[31], TakeBranch);
 
 
 // Result Source
-mux4 #(32)     resultmux(ALUResult, ReadData, PCPlus4, lAuiPC, ResultSrc, Result);
+mux4 #(32)     resultmux(ALUResult, LoadData, PCPlus4, lAuiPC, ResultSrc, Result);
 
 // hazard unit
 
-assign Mem_WrData = WriteData;
+assign Mem_WrData = MemWData;
 assign Mem_WrAddr = ALUResult;
 
 // eventually this statements will be removed while adding pipeline registers

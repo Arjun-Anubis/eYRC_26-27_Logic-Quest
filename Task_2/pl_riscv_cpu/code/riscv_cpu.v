@@ -15,7 +15,7 @@ module riscv_cpu (
 
 wire        ALUSrc, RegWrite, Branch, Jump, Jalr;
 wire [1:0]  ResultSrc, ImmSrc;
-wire [2:0]  ALUControl;
+wire [3:0]  ALUControl;
 
 controller  c   (Instr[6:0], Instr[14:12], Instr[30],
                 ResultSrc, MemWrite, ALUSrc,
@@ -26,6 +26,6 @@ datapath    dp  (clk, reset, ResultSrc,
                 PC, Instr, Mem_WrAddr, Mem_WrData, ReadData, Result, PCW, ALUResultW, WriteDataW);
 
 // Eventually will be removed while adding pipeline registers
-assign funct3 = Instr[14:12];
+assign funct3 = 3'b010;
 
 endmodule
